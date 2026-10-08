@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz Event</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0a0a0f;
+    --surface: #13131a;
+    --accent: #7c3aed;
+    --accent2: #06b6d4;
+    --text: #f0f0f5;
+    --muted: #6b7280;
+    --border: #1f1f2e;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .grid-bg {
+    position: fixed; inset: 0; z-index: 0;
+    background-image: linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 20%, transparent 100%);
+  }
+  .glow { position: fixed; width: 600px; height: 600px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(124,58,237,0.15) 0%, transparent 70%);
+    top: 50%; left: 50%; transform: translate(-50%, -50%); pointer-events: none; }
+  .content { position: relative; z-index: 1; text-align: center; padding: 2rem; }
+  .badge { display: inline-block; background: rgba(124,58,237,0.15); border: 1px solid rgba(124,58,237,0.4);
+    color: #a78bfa; font-family: 'Space Mono', monospace; font-size: 0.75rem;
+    padding: 0.35rem 1rem; border-radius: 100px; margin-bottom: 1.5rem; letter-spacing: 0.1em; }
+  h1 { font-size: clamp(3rem, 8vw, 6rem); font-weight: 800; line-height: 1;
+    background: linear-gradient(135deg, #f0f0f5 30%, #7c3aed 70%, #06b6d4 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    margin-bottom: 1rem; }
+  p { color: var(--muted); font-size: 1.1rem; margin-bottom: 3rem; max-width: 400px; }
+  .cards { display: flex; gap: 1.5rem; flex-wrap: wrap; justify-content: center; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 16px;
+    padding: 2rem; width: 220px; text-decoration: none; color: var(--text);
+    transition: all 0.3s; cursor: pointer; }
+  .card:hover { border-color: var(--accent); transform: translateY(-4px);
+    box-shadow: 0 20px 40px rgba(124,58,237,0.15); }
+  .card .icon { font-size: 2.5rem; margin-bottom: 1rem; }
+  .card h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 0.5rem; }
+  .card p { font-size: 0.85rem; color: var(--muted); margin: 0; }
+  .card.primary { border-color: rgba(124,58,237,0.4); background: rgba(124,58,237,0.08); }
+  .card.cyan { border-color: rgba(6,182,212,0.4); background: rgba(6,182,212,0.05); }
+  .card.cyan:hover { border-color: var(--accent2); box-shadow: 0 20px 40px rgba(6,182,212,0.1); }
+</style>
+</head>
+<body>
+<div class="grid-bg"></div>
+<div class="glow"></div>
+<div class="content">
+  <div class="badge">⚡ LIVE QUIZ PLATFORM</div>
+  <h1>QUIZ<br>EVENT</h1>
+  <p>Real-time competitive quizzing for your engineering college event</p>
+  <div class="cards">
+    <a href="/team" class="card primary">
+      <div class="icon">🎯</div>
+      <h2>Team Login</h2>
+      <p>Join the quiz with your team credentials</p>
+    </a>
+    <a href="/admin" class="card">
+      <div class="icon">⚙️</div>
+      <h2>Admin Panel</h2>
+      <p>Manage teams, quizzes and control the event</p>
+    </a>
+    <a href="/leaderboard" class="card cyan">
+      <div class="icon">🏆</div>
+      <h2>Leaderboard</h2>
+      <p>Watch live scores on the projector</p>
+    </a>
+  </div>
+</div>
+</body>
+</html>
