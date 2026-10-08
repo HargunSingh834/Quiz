@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin Panel — Quiz Event</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.socket.io/4.6.2/socket.io.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0a0a0f;--surface:#13131a;--s2:#1a1a24;--accent:#7c3aed;--a2:#06b6d4;--green:#10b981;--red:#ef4444;--yellow:#f59e0b;--text:#f0f0f5;--muted:#6b7280;--border:#1f1f2e}
+body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;display:flex}
+.sidebar{width:230px;flex-shrink:0;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;padding:1.5rem 0;position:fixed;top:0;left:0;height:100vh;z-index:50}
+.logo{padding:0 1.25rem 1.25rem;border-bottom:1px solid var(--border);margin-bottom:0.75rem}
+.logo h1{font-size:1.1rem;font-weight:800;background:linear-gradient(135deg,#f0f0f5,#7c3aed);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;line-height:1.2}
+.logo span{font-family:'Space Mono',monospace;font-size:0.6rem;color:var(--muted);letter-spacing:0.08em}
+nav a{display:flex;align-items:center;gap:0.6rem;padding:0.65rem 1.25rem;color:var(--muted);text-decoration:none;font-size:0.85rem;font-weight:600;transition:all 0.15s;border-left:2px solid transparent;cursor:pointer}
+nav a:hover{color:var(--text);background:rgba(124,58,237,0.04)}
+nav a.active{color:#a78bfa;background:rgba(124,58,237,0.08);border-left-color:var(--accent)}
+.nav-section{padding:0.5rem 1.25rem 0.25rem;font-size:0.65rem;color:var(--muted);letter-spacing:0.1em;text-transform:uppercase;margin-top:0.5rem}
+.logout-btn{margin:auto 1rem 0;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);color:#f87171;padding:0.55rem;border-radius:8px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:600;font-size:0.82rem;width:calc(100% - 2rem);transition:all 0.2s}
+.logout-btn:hover{background:rgba(239,68,68,0.15)}
+.main{margin-left:230px;flex:1;padding:2rem;min-height:100vh}
+.page{display:none}.page.active{display:block}
+.page-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.75rem}
+.page-header h2{font-size:1.5rem;font-weight:800;margin-bottom:0.2rem}
+.page-header .sub{color:var(--muted);font-size:0.85rem}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.5rem;margin-bottom:1rem}
+.card-title{font-size:0.75rem;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:1.1rem}
+.stats-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:0.85rem;margin-bottom:1.5rem}
+.stat{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.1rem 1.25rem}
+.stat-val{font-size:2rem;font-weight:800;font-family:'Space Mono',monospace;line-height:1}
+.stat-label{color:var(--muted);font-size:0.75rem;margin-top:0.35rem;font-weight:600}
+.stat.purple .stat-val{color:#a78bfa}.stat.cyan .stat-val{color:#22d3ee}.stat.green .stat-val{color:#34d399}.stat.yellow .stat-val{color:#fbbf24}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:0.6rem 1rem;font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.06em;border-bottom:1px solid var(--border);white-space:nowrap}
+td{padding:0.7rem 1rem;font-size:0.85rem;border-bottom:1px solid rgba(31,31,46,0.6);vertical-align:middle}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:rgba(124,58,237,0.025)}
+code{font-family:'Space Mono',monospace;font-size:0.78rem;background:rgba(124,58,237,0.12);color:#a78bfa;padding:0.15rem 0.45rem;border-radius:4px}
+.badge{display:inline-block;padding:0.18rem 0.55rem;border-radius:100px;font-size:0.7rem;font-weight:700;font-family:'Space Mono',monospace;white-space:nowrap}
+.bg{background:rgba(16,185,129,0.12);color:#34d399}.br{background:rgba(239,68,68,0.12);color:#f87171}
+.by{background:rgba(245,158,11,0.12);color:#fbbf24}.bp{background:rgba(124,58,237,0.12);color:#a78bfa}
+.bc{background:rgba(6,182,212,0.12);color:#22d3ee}.bm{background:rgba(107,114,128,0.12);color:var(--muted)}
+.btn{display:inline-flex;align-items:center;gap:0.35rem;padding:0.45rem 0.9rem;border-radius:7px;border:none;cursor:pointer;font-family:'Syne',sans-serif;font-weight:600;font-size:0.82rem;transition:all 0.15s;text-decoration:none;white-space:nowrap}
+.btn-primary{background:var(--accent);color:#fff}.btn-primary:hover{background:#6d28d9}
+.btn-cyan{background:var(--a2);color:#0a0a0f}.btn-cyan:hover{background:#0891b2}
+.btn-green{background:var(--green);color:#fff}.btn-green:hover{background:#059669}
+.btn-red{background:var(--red);color:#fff}.btn-red:hover{background:#dc2626}
+.btn-yellow{background:var(--yellow);color:#0a0a0f}.btn-yellow:hover{background:#d97706}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}.btn-ghost:hover{color:var(--text);border-color:rgba(124,58,237,0.5)}
+.btn-sm{padding:0.3rem 0.6rem;font-size:0.75rem}
+.btn-group{display:flex;gap:0.5rem;flex-wrap:wrap}
+input,textarea,select{width:100%;background:var(--s2);border:1px solid var(--border);color:var(--text);padding:0.6rem 0.85rem;border-radius:8px;font-family:'Syne',sans-serif;font-size:0.88rem;outline:none;transition:border 0.2s}
+input:focus,textarea:focus,select:focus{border-color:var(--accent)}
+label{display:block;font-size:0.75rem;color:var(--muted);margin-bottom:0.35rem;font-weight:600;letter-spacing:0.02em}
+.fg{margin-bottom:0.9rem}
+.fr2{display:grid;grid-template-columns:1fr 1fr;gap:0.85rem}
+.fr3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:0.85rem}
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:200;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(6px)}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:2rem;width:90%;max-width:580px;max-height:90vh;overflow-y:auto}
+.modal h3{font-size:1.15rem;font-weight:800;margin-bottom:1.5rem}
+.mf{display:flex;gap:0.75rem;justify-content:flex-end;margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--border)}
+.al{padding:0.7rem 0.9rem;border-radius:8px;font-size:0.82rem;margin-bottom:0.85rem}
+.al-s{background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.25);color:#34d399}
+.al-e{background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);color:#f87171}
+.al-i{background:rgba(124,58,237,0.08);border:1px solid rgba(124,58,237,0.25);color:#a78bfa}
+.quiz-card{background:var(--surface);border:1px solid var(--border);border-radius:12px;margin-bottom:1rem;overflow:hidden}
+.qch{padding:1.1rem 1.25rem;display:flex;align-items:center;gap:1rem;cursor:pointer}
+.qch:hover{background:rgba(124,58,237,0.03)}
+.qcb{padding:0 1.25rem 1.25rem;border-top:1px solid var(--border)}
+.qi{background:var(--s2);border:1px solid var(--border);border-radius:9px;padding:0.85rem 1rem;margin-bottom:0.6rem;display:flex;align-items:flex-start;gap:0.85rem}
+.qn{background:rgba(124,58,237,0.15);color:#a78bfa;width:26px;height:26px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:0.72rem;font-weight:700;font-family:'Space Mono',monospace;flex-shrink:0;margin-top:2px}
+.cpanel{background:var(--surface);border:2px solid var(--accent);border-radius:14px;padding:1.75rem;margin-bottom:1.25rem}
+.dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;display:inline-block}
+.dg{background:var(--green);box-shadow:0 0 6px var(--green)}.dy{background:var(--yellow)}.dgray{background:var(--muted)}
+.qctrl{background:var(--s2);border:1px solid var(--border);border-radius:9px;padding:0.85rem 1rem;display:flex;align-items:center;gap:0.85rem;cursor:pointer;transition:all 0.2s;margin-bottom:0.5rem}
+.qctrl:hover{border-color:rgba(124,58,237,0.4)}
+.qctrl.aq{border-color:var(--green);background:rgba(16,185,129,0.04)}
+.qctrl.dq{opacity:0.4;pointer-events:none}
+.qctrl.aq .qn{background:rgba(16,185,129,0.2);color:#34d399}
+.tbadge{font-family:'Space Mono',monospace;font-size:1.2rem;font-weight:700;color:var(--accent);min-width:48px;text-align:right}
+.tbadge.tw{color:var(--yellow)}.tbadge.td{color:var(--red)}
+.score-bar{height:6px;background:var(--border);border-radius:100px}
+.score-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--a2));border-radius:100px;transition:width 0.6s ease}
+.bdr{padding:0.85rem 0;border-bottom:1px solid var(--border);display:grid;grid-template-columns:auto 1fr auto;gap:1rem;align-items:center}
+.bdr:last-child{border:none}
+.pbar{height:7px;background:var(--border);border-radius:100px;overflow:hidden;flex:1}
+.pfill{height:100%;border-radius:100px}
+.empty{color:var(--muted);font-size:0.88rem;padding:1.5rem;text-align:center}
+#login-screen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:999}
+.lbox{background:var(--surface);border:1px solid var(--border);border-radius:20px;padding:2.5rem;width:100%;max-width:380px;text-align:center}
+.lbox h2{font-size:1.6rem;font-weight:800;margin-bottom:0.35rem}
+.lbox p{color:var(--muted);font-size:0.88rem;margin-bottom:1.75rem}
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="lbox">
+    <div style="font-size:2.5rem;margin-bottom:1rem">⚙️</div>
+    <h2>Admin Panel</h2>
+    <p>Sign in to manage the quiz event</p>
+    <div id="l-alert"></div>
+    <div class="fg" style="text-align:left"><label>Team ID</label><input id="l-id" value="admin"></div>
+    <div class="fg" style="text-align:left"><label>Password</label><input id="l-pass" type="password" placeholder="Password"></div>
+    <button class="btn btn-primary" style="width:100%;justify-content:center;padding:0.75rem;margin-top:0.25rem" onclick="doLogin()">Sign In →</button>
+  </div>
+</div>
+
+<div class="sidebar">
+  <div class="logo"><h1>QUIZ<br>EVENT</h1><span>ADMIN PANEL</span></div>
+  <div class="nav-section">Manage</div>
+  <nav>
+    <a data-page="dashboard" onclick="showPage('dashboard')">📊 Dashboard</a>
+    <a data-page="teams" onclick="showPage('teams')">👥 Teams</a>
+    <a data-page="quizzes" onclick="showPage('quizzes')">📝 Quizzes</a>
+  </nav>
+  <div class="nav-section">Event</div>
+  <nav>
+    <a data-page="control" onclick="showPage('control')">🎮 Event Control</a>
+    <a data-page="results" onclick="showPage('results')">🏆 Results</a>
+  </nav>
+  <div class="nav-section">Links</div>
+  <nav>
+    <a href="/leaderboard" target="_blank">📺 Leaderboard</a>
+    <a href="/team" target="_blank">🎯 Team Login</a>
+  </nav>
+  <button class="logout-btn" onclick="doLogout()">Sign Out</button>
+</div>
+
+<div class="main">
+  <div class="page" id="page-dashboard">
+    <div class="page-header"><div><h2>Dashboard</h2><div class="sub">Event overview</div></div></div>
+    <div class="stats-grid">
+      <div class="stat purple"><div class="stat-val" id="s-teams">—</div><div class="stat-label">Active Teams</div></div>
+      <div class="stat cyan"><div class="stat-val" id="s-quizzes">—</div><div class="stat-label">Quiz Rounds</div></div>
+      <div class="stat green"><div class="stat-val" id="s-questions">—</div><div class="stat-label">Questions</div></div>
+      <div class="stat yellow"><div class="stat-val" id="s-sessions">—</div><div class="stat-label">Sessions Run</div></div>
+    </div>
+    <div class="card"><div class="card-title">Quick Actions</div>
+      <div class="btn-group">
+        <button class="btn btn-primary" onclick="showPage('teams');openTeamModal()">➕ New Team</button>
+        <button class="btn btn-cyan" onclick="showPage('quizzes');openQuizModal()">📝 New Quiz</button>
+        <button class="btn btn-green" onclick="showPage('control')">🎮 Event Control</button>
+        <a href="/leaderboard" target="_blank" class="btn btn-ghost">📺 Leaderboard</a>
+      </div>
+    </div>
+    <div class="card" id="dash-live" style="display:none">
+      <div class="card-title">Live Session</div>
+      <div id="dash-live-body"></div>
+    </div>
+  </div>
+
+  <div class="page" id="page-teams">
+    <div class="page-header">
+      <div><h2>Teams</h2><div class="sub">Manage participating teams</div></div>
+      <div class="btn-group">
+        <button class="btn btn-ghost" onclick="openBulkModal()">📋 Bulk Create</button>
+        <button class="btn btn-primary" onclick="openTeamModal()">➕ New Team</button>
+      </div>
+    </div>
+    <div class="card"><table>
+      <thead><tr><th>Team ID</th><th>Name</th><th>Status</th><th>Created</th><th>Actions</th></tr></thead>
+      <tbody id="teams-tbody"><tr><td colspan="5" class="empty">Loading...</td></tr></tbody>
+    </table></div>
+  </div>
+
+  <div class="page" id="page-quizzes">
+    <div class="page-header">
+      <div><h2>Quizzes</h2><div class="sub">Create quiz rounds and questions</div></div>
+      <button class="btn btn-primary" onclick="openQuizModal()">➕ New Quiz</button>
+    </div>
+    <div id="quizzes-list"></div>
+  </div>
+
+  <div class="page" id="page-control">
+    <div class="page-header">
+      <div><h2>Event Control</h2><div class="sub">Run the live quiz</div></div>
+      <a href="/leaderboard" target="_blank" class="btn btn-ghost btn-sm">📺 Leaderboard</a>
+    </div>
+    <div id="ctrl-main"></div>
+  </div>
+
+  <div class="page" id="page-results">
+    <div class="page-header"><div><h2>Results</h2><div class="sub">Scores and question breakdown</div></div></div>
+    <div class="card"><div class="fg"><label>Select Quiz Session</label>
+      <select id="sess-sel" onchange="loadResults()"><option value="">— Pick a session —</option></select>
+    </div></div>
+    <div id="results-area"></div>
+  </div>
+</div>
+
+<!-- Team Modal -->
+<div class="modal-overlay" id="modal-team" style="display:none" onclick="if(event.target===this)closeModal('modal-team')">
+  <div class="modal">
+    <h3 id="tm-title">➕ New Team</h3>
+    <div id="tm-al"></div>
+    <input type="hidden" id="tm-id">
+    <div class="fg"><label>Team ID</label><input id="tm-tid" placeholder="e.g. team_alpha"></div>
+    <div class="fg"><label>Team Name</label><input id="tm-name" placeholder="e.g. Team Alpha"></div>
+    <div class="fg"><label>Password</label><input id="tm-pass" type="password" placeholder="Password"></div>
+    <div class="mf"><button class="btn btn-ghost" onclick="closeModal('modal-team')">Cancel</button><button class="btn btn-primary" onclick="saveTeam()">Save</button></div>
+  </div>
+</div>
+
+<!-- Bulk Modal -->
+<div class="modal-overlay" id="modal-bulk" style="display:none" onclick="if(event.target===this)closeModal('modal-bulk')">
+  <div class="modal">
+    <h3>📋 Bulk Create Teams</h3>
+    <div class="al al-i">Format: <code>team_id, Team Name, password</code> — one per line</div>
+    <div id="bulk-al"></div>
+    <div class="fg"><label>Teams</label>
+      <textarea id="bulk-in" rows="8" placeholder="team_alpha, Team Alpha, pass123&#10;team_beta, Team Beta, pass123&#10;team_gamma, Team Gamma, pass123"></textarea>
+    </div>
+    <div class="mf"><button class="btn btn-ghost" onclick="closeModal('modal-bulk')">Cancel</button><button class="btn btn-primary" onclick="saveBulk()">Create Teams</button></div>
+  </div>
+</div>
+
+<!-- Quiz Modal -->
+<div class="modal-overlay" id="modal-quiz" style="display:none" onclick="if(event.target===this)closeModal('modal-quiz')">
+  <div class="modal">
+    <h3>📝 New Quiz</h3>
+    <div id="qz-al"></div>
+    <div class="fg"><label>Title</label><input id="qz-title" placeholder="e.g. Round 1 — General Knowledge"></div>
+    <div class="fg"><label>Description (optional)</label><textarea id="qz-desc" rows="2"></textarea></div>
+    <div class="mf"><button class="btn btn-ghost" onclick="closeModal('modal-quiz')">Cancel</button><button class="btn btn-primary" onclick="saveQuiz()">Create</button></div>
+  </div>
+</div>
+
+<!-- Question Modal -->
+<div class="modal-overlay" id="modal-q" style="display:none" onclick="if(event.target===this)closeModal('modal-q')">
+  <div class="modal">
+    <h3>➕ Add Question</h3>
+    <div id="qq-al"></div>
+    <input type="hidden" id="qq-qid">
+    <div class="fg"><label>Question Text</label><textarea id="qq-text" rows="2" placeholder="Enter your question..."></textarea></div>
+    <div class="fg"><label>Type</label>
+      <select id="qq-type" onchange="toggleQType()">
+        <option value="mcq">Multiple Choice (A/B/C/D)</option>
+        <option value="truefalse">True / False</option>
+        <option value="text">Text Answer</option>
+      </select>
+    </div>
+    <div id="qq-mcq">
+      <div class="fr2">
+        <div class="fg"><label>Option A</label><input id="qq-a" placeholder="Option A"></div>
+        <div class="fg"><label>Option B</label><input id="qq-b" placeholder="Option B"></div>
+        <div class="fg"><label>Option C</label><input id="qq-c" placeholder="Option C"></div>
+        <div class="fg"><label>Option D</label><input id="qq-d" placeholder="Option D"></div>
+      </div>
+      <div class="fg"><label>Correct Answer</label>
+        <select id="qq-ans-m"><option value="A">A</option><option value="B">B</option><option value="C">C</option><option value="D">D</option></select>
+      </div>
+    </div>
+    <div id="qq-tf" style="display:none">
+      <div class="fg"><label>Correct Answer</label><select id="qq-ans-tf"><option value="A">True</option><option value="B">False</option></select></div>
+    </div>
+    <div id="qq-tx" style="display:none">
+      <div class="fg"><label>Expected Answer (case-insensitive)</label><input id="qq-ans-tx" placeholder="e.g. JavaScript"></div>
+    </div>
+    <div class="fr2">
+      <div class="fg"><label>Points</label><input id="qq-pts" type="number" value="10" min="1" max="100"></div>
+      <div class="fg"><label>Time Limit (sec)</label><input id="qq-time" type="number" value="30" min="5" max="300"></div>
+    </div>
+    <div class="mf"><button class="btn btn-ghost" onclick="closeModal('modal-q')">Cancel</button><button class="btn btn-primary" onclick="saveQ()">Save Question</button></div>
+  </div>
+</div>
+
+<script>
+'use strict';
+let TOKEN = localStorage.getItem('admin_token');
+let SOCK = null;
+let activeSess = null, activeQuizId = null, activeQuizTitle = '';
+let ctrlQs = [], timerInt = null, curQId = null;
+
+// AUTH
+async function doLogin() {
+  try {
+    const d = await req('POST','/auth/login',{team_id:document.getElementById('l-id').value.trim(),password:document.getElementById('l-pass').value});
+    if (!d.isAdmin) throw new Error('Admin access required');
+    TOKEN = d.token; localStorage.setItem('admin_token',TOKEN); startApp();
+  } catch(e) { showAl('l-alert',e.message,'e'); }
+}
+function doLogout(){localStorage.clear();location.reload();}
+function tryAutoLogin(){
+  if(!TOKEN)return;
+  try{const p=JSON.parse(atob(TOKEN.split('.')[1]));if(!p.isAdmin||p.exp*1000<Date.now()){localStorage.clear();return;}startApp();}
+  catch{localStorage.clear();}
+}
+function startApp(){document.getElementById('login-screen').style.display='none';initSock();showPage('dashboard');}
+
+// SOCKET
+function initSock(){
+  SOCK=io({auth:{token:TOKEN}});
+  SOCK.on('session_created',({session_id})=>{activeSess=session_id;SOCK.emit('join_session',session_id);renderCtrl();});
+  SOCK.on('leaderboard_update',data=>{
+    const el=document.getElementById('ctrl-lb');
+    if(!el)return;
+    if(!data.length){el.innerHTML='<div class="empty">No scores yet</div>';return;}
+    const mx=Math.max(...data.map(t=>t.total_score),1);
+    el.innerHTML=data.slice(0,8).map((t,i)=>`<div style="display:flex;align-items:center;gap:0.85rem;font-size:0.85rem;margin-bottom:0.4rem">
+      <div style="width:20px;font-family:'Space Mono',monospace;font-size:0.75rem;color:var(--muted);text-align:right">${i+1}</div>
+      <div style="flex:1">${t.team_name}</div>
+      <div style="width:110px"><div class="score-bar"><div class="score-fill" style="width:${Math.round(t.total_score/mx*100)}%"></div></div></div>
+      <div style="font-family:'Space Mono',monospace;font-size:0.8rem;color:#a78bfa;min-width:32px;text-align:right">${t.total_score}</div>
+    </div>`).join('');
+  });
+}
+
+// NAV
+function showPage(p){
+  document.querySelectorAll('.page').forEach(e=>e.classList.remove('active'));
+  document.querySelectorAll('nav a[data-page]').forEach(e=>e.classList.remove('active'));
+  document.getElementById('page-'+p).classList.add('active');
+  document.querySelector(`nav a[data-page="${p}"]`)?.classList.add('active');
+  if(p==='dashboard')loadDash();
+  if(p==='teams')loadTeams();
+  if(p==='quizzes')loadQuizzes();
+  if(p==='control')loadCtrl();
+  if(p==='results')loadSessions();
+}
+
+// API
+async function req(method,path,body){
+  const r=await fetch('/api'+path,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+TOKEN},body:body?JSON.stringify(body):undefined});
+  const d=await r.json();if(!r.ok)throw new Error(d.error||r.statusText);return d;
+}
+async function GET(p){return req('GET',p);}
+async function POST(p,b){return req('POST',p,b);}
+async function PATCH(p,b){return req('PATCH',p,b);}
+async function DEL(p){return req('DELETE',p);}
+
+function closeModal(id){document.getElementById(id).style.display='none';}
+function showAl(id,msg,type='e'){document.getElementById(id).innerHTML=`<div class="al al-${type}">${msg}</div>`;}
+
+// DASHBOARD
+async function loadDash(){
+  try{
+    const[teams,quizzes,sessions]=await Promise.all([GET('/admin/teams'),GET('/admin/quizzes'),GET('/admin/sessions')]);
+    document.getElementById('s-teams').textContent=teams.filter(t=>t.is_active).length;
+    document.getElementById('s-quizzes').textContent=quizzes.length;
+    document.getElementById('s-sessions').textContent=sessions.length;
+    let qc=0;for(const q of quizzes){try{const qs=await GET(`/admin/quizzes/${q.id}/questions`);qc+=qs.length;}catch{}}
+    document.getElementById('s-questions').textContent=qc;
+    const live=sessions.find(s=>['waiting','question_active','question_ended'].includes(s.status));
+    if(live){
+      document.getElementById('dash-live').style.display='block';
+      document.getElementById('dash-live-body').innerHTML=`<div style="display:flex;align-items:center;gap:1rem">
+        <span class="dot dg"></span><div><strong>${live.quiz_title}</strong>
+        <div style="font-size:0.78rem;color:var(--muted)">Session #${live.id} · ${live.status}</div></div>
+        <button class="btn btn-green btn-sm" style="margin-left:auto" onclick="showPage('control')">Control →</button></div>`;
+    }
+  }catch(e){console.error(e);}
+}
+
+// TEAMS
+async function loadTeams(){
+  try{
+    const teams=await GET('/admin/teams');
+    const tb=document.getElementById('teams-tbody');
+    if(!teams.length){tb.innerHTML='<tr><td colspan="5" class="empty">No teams yet</td></tr>';return;}
+    tb.innerHTML=teams.map(t=>`<tr>
+      <td><code>${t.team_id}</code></td><td>${t.team_name}</td>
+      <td><span class="badge ${t.is_active?'bg':'br'}">${t.is_active?'Active':'Disabled'}</span></td>
+      <td style="color:var(--muted);font-size:0.75rem">${new Date(t.created_at).toLocaleDateString()}</td>
+      <td><div class="btn-group">
+        <button class="btn btn-ghost btn-sm" onclick="openTeamModal(${t.id},'${t.team_id}','${t.team_name.replace(/'/g,"\\'")}')">Edit</button>
+        <button class="btn btn-ghost btn-sm" onclick="toggleTeam(${t.id},${t.is_active?0:1})">${t.is_active?'Disable':'Enable'}</button>
+        <button class="btn btn-red btn-sm" onclick="delTeam(${t.id},'${t.team_name.replace(/'/g,"\\'")}')">Delete</button>
+      </div></td></tr>`).join('');
+  }catch(e){console.error(e);}
+}
+function openTeamModal(id='',tid='',name=''){
+  document.getElementById('tm-id').value=id;
+  document.getElementById('tm-tid').value=tid;
+  document.getElementById('tm-name').value=name;
+  document.getElementById('tm-pass').value='';
+  document.getElementById('tm-title').textContent=id?'✏️ Edit Team':'➕ New Team';
+  document.getElementById('tm-tid').disabled=!!id;
+  document.getElementById('tm-al').innerHTML='';
+  document.getElementById('modal-team').style.display='flex';
+}
+async function saveTeam(){
+  const id=document.getElementById('tm-id').value;
+  const b={team_id:document.getElementById('tm-tid').value.trim(),team_name:document.getElementById('tm-name').value.trim(),password:document.getElementById('tm-pass').value};
+  if(!b.team_id||!b.team_name)return showAl('tm-al','Team ID and Name are required');
+  if(!id&&!b.password)return showAl('tm-al','Password is required for new teams');
+  try{if(id)await PATCH(`/admin/teams/${id}`,b);else await POST('/admin/teams',b);closeModal('modal-team');loadTeams();}
+  catch(e){showAl('tm-al',e.message);}
+}
+async function toggleTeam(id,val){try{await PATCH(`/admin/teams/${id}`,{is_active:val});loadTeams();}catch(e){alert(e.message);}}
+async function delTeam(id,name){if(!confirm(`Delete "${name}"?`))return;await DEL(`/admin/teams/${id}`);loadTeams();}
+function openBulkModal(){document.getElementById('bulk-in').value='';document.getElementById('bulk-al').innerHTML='';document.getElementById('modal-bulk').style.display='flex';}
+async function saveBulk(){
+  const lines=document.getElementById('bulk-in').value.trim().split('\n').filter(Boolean);
+  if(!lines.length)return showAl('bulk-al','Enter at least one team');
+  const teams=lines.map(l=>{const[team_id,team_name,password]=l.split(',').map(s=>s.trim());return{team_id,team_name,password};}).filter(t=>t.team_id&&t.team_name&&t.password);
+  if(!teams.length)return showAl('bulk-al','Invalid format. Use: team_id, Team Name, password');
+  try{
+    const results=await POST('/admin/teams/bulk',{teams});
+    const ok=results.filter(r=>r.success).length,fail=results.filter(r=>!r.success);
+    let msg=`✅ Created ${ok} team(s).`;
+    if(fail.length)msg+=' ❌ Failed: '+fail.map(f=>`${f.team_id} (${f.error})`).join(', ');
+    showAl('bulk-al',msg,ok>0?'s':'e');loadTeams();
+  }catch(e){showAl('bulk-al',e.message);}
+}
+
+// QUIZZES
+async function loadQuizzes(){
+  try{
+    const quizzes=await GET('/admin/quizzes');
+    const el=document.getElementById('quizzes-list');
+    if(!quizzes.length){el.innerHTML='<div class="card empty">No quizzes yet. Create your first round!</div>';return;}
+    el.innerHTML='';
+    for(const q of quizzes){
+      const questions=await GET(`/admin/quizzes/${q.id}/questions`);
+      const sb={pending:'by',active:'bg',paused:'bc',ended:'br'}[q.status]||'bm';
+      el.innerHTML+=`<div class="quiz-card">
+        <div class="qch" onclick="toggleQBody(${q.id})">
+          <div style="flex:1;min-width:0">
+            <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.2rem">
+              <strong style="font-size:0.95rem">${q.title}</strong>
+              <span class="badge ${sb}">${q.status}</span>
+              <span class="badge bm">${questions.length} q</span>
+            </div>
+            ${q.description?`<div style="font-size:0.78rem;color:var(--muted)">${q.description}</div>`:''}
+          </div>
+          <div class="btn-group" onclick="event.stopPropagation()">
+            <button class="btn btn-primary btn-sm" onclick="openQModal(${q.id})">➕ Question</button>
+            <button class="btn btn-red btn-sm" onclick="delQuiz(${q.id},'${q.title.replace(/'/g,'')}')">Delete</button>
+          </div>
+        </div>
+        <div class="qcb" id="qb-${q.id}" style="display:none">
+          ${!questions.length?'<div class="empty" style="padding:1rem 0">No questions yet</div>':
+            questions.map((qq,i)=>`<div class="qi">
+              <div class="qn">${i+1}</div>
+              <div style="flex:1;min-width:0">
+                <div style="font-size:0.87rem;margin-bottom:0.35rem;line-height:1.4">${qq.question_text}</div>
+                <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
+                  <span class="badge bp">${{mcq:'MCQ',truefalse:'T/F',text:'Text'}[qq.question_type]}</span>
+                  <span class="badge bc">${qq.points}pts</span>
+                  <span class="badge by">⏱${qq.time_limit}s</span>
+                  ${qq.question_type==='mcq'?`<span class="badge bm">Ans:${qq.correct_answer}</span>`:''}
+                  ${qq.question_type==='text'?`<span class="badge bm">Ans:"${qq.correct_text}"</span>`:''}
+                </div>
+              </div>
+              <button class="btn btn-red btn-sm" onclick="delQ(${qq.id},${qq.quiz_id})">✕</button>
+            </div>`).join('')}
+        </div>
+      </div>`;
+    }
+    if(quizzes.length)toggleQBody(quizzes[0].id);
+  }catch(e){console.error(e);}
+}
+function toggleQBody(id){const e=document.getElementById('qb-'+id);if(e)e.style.display=e.style.display==='none'?'block':'none';}
+function openQuizModal(){document.getElementById('qz-title').value='';document.getElementById('qz-desc').value='';document.getElementById('qz-al').innerHTML='';document.getElementById('modal-quiz').style.display='flex';}
+async function saveQuiz(){
+  const t=document.getElementById('qz-title').value.trim();
+  if(!t)return showAl('qz-al','Title is required');
+  try{await POST('/admin/quizzes',{title:t,description:document.getElementById('qz-desc').value});closeModal('modal-quiz');loadQuizzes();}
+  catch(e){showAl('qz-al',e.message);}
+}
+async function delQuiz(id,title){if(!confirm(`Delete "${title}" and all its questions?`))return;await DEL(`/admin/quizzes/${id}`);loadQuizzes();}
+
+// QUESTIONS
+function openQModal(qid){
+  document.getElementById('qq-qid').value=qid;
+  ['qq-text','qq-a','qq-b','qq-c','qq-d','qq-ans-tx'].forEach(id=>{try{document.getElementById(id).value='';}catch{}});
+  document.getElementById('qq-pts').value=10;document.getElementById('qq-time').value=30;
+  document.getElementById('qq-type').value='mcq';document.getElementById('qq-al').innerHTML='';
+  toggleQType();document.getElementById('modal-q').style.display='flex';
+}
+function toggleQType(){
+  const t=document.getElementById('qq-type').value;
+  document.getElementById('qq-mcq').style.display=t==='mcq'?'block':'none';
+  document.getElementById('qq-tf').style.display=t==='truefalse'?'block':'none';
+  document.getElementById('qq-tx').style.display=t==='text'?'block':'none';
+}
+async function saveQ(){
+  const qid=document.getElementById('qq-qid').value,type=document.getElementById('qq-type').value;
+  const text=document.getElementById('qq-text').value.trim();
+  if(!text)return showAl('qq-al','Question text is required');
+  let ca,ct;
+  if(type==='mcq')ca=document.getElementById('qq-ans-m').value;
+  else if(type==='truefalse')ca=document.getElementById('qq-ans-tf').value;
+  else{ca='TEXT';ct=document.getElementById('qq-ans-tx').value.trim();if(!ct)return showAl('qq-al','Expected answer required');}
+  try{
+    const ex=await GET(`/admin/quizzes/${qid}/questions`);
+    await POST(`/admin/quizzes/${qid}/questions`,{
+      question_text:text,option_a:document.getElementById('qq-a').value,option_b:document.getElementById('qq-b').value,
+      option_c:document.getElementById('qq-c').value,option_d:document.getElementById('qq-d').value,
+      correct_answer:ca,correct_text:ct,question_type:type,
+      points:parseInt(document.getElementById('qq-pts').value)||10,
+      time_limit:parseInt(document.getElementById('qq-time').value)||30,
+      order_index:ex.length+1
+    });
+    closeModal('modal-q');loadQuizzes();
+  }catch(e){showAl('qq-al',e.message);}
+}
+async function delQ(qid,quizId){if(!confirm('Delete this question?'))return;await DEL(`/admin/questions/${qid}`);loadQuizzes();}
+
+// EVENT CONTROL
+async function loadCtrl(){
+  const el=document.getElementById('ctrl-main');
+  // Restore active session
+  try{
+    const sessions=await GET('/admin/sessions');
+    const live=sessions.find(s=>['waiting','question_active','question_ended'].includes(s.status));
+    if(live&&!activeSess){
+      activeSess=live.id;activeQuizId=live.quiz_id;activeQuizTitle=live.quiz_title;
+      SOCK.emit('join_session',live.id);
+      const qs=await GET(`/admin/quizzes/${live.quiz_id}/questions`);
+      ctrlQs=qs.sort((a,b)=>a.order_index-b.order_index);
+      renderCtrl();return;
+    }
+  }catch{}
+  if(activeSess){renderCtrl();return;}
+  // Quiz picker
+  try{
+    const quizzes=await GET('/admin/quizzes');
+    const avail=quizzes.filter(q=>q.status!=='ended');
+    el.innerHTML=`<div class="al al-i">Select a quiz to start. Teams will receive questions as you push them live.</div>
+      ${!avail.length?'<div class="card empty">No available quizzes. Create one in Quizzes tab first.</div>':
+        avail.map(q=>`<div class="card" style="display:flex;align-items:center;gap:1rem">
+          <div style="flex:1"><strong>${q.title}</strong>
+          <div style="font-size:0.78rem;color:var(--muted);margin-top:0.2rem">${q.description||'No description'} · <span class="badge ${q.status==='active'?'bg':'by'}">${q.status}</span></div></div>
+          <button class="btn btn-green" onclick="startQuiz(${q.id},'${q.title.replace(/'/g,'')}')">🚀 Start</button>
+        </div>`).join('')}`;
+  }catch(e){el.innerHTML=`<div class="al al-e">${e.message}</div>`;}
+}
+
+async function startQuiz(qid,title){
+  activeQuizId=qid;activeQuizTitle=title;
+  try{
+    const qs=await GET(`/admin/quizzes/${qid}/questions`);
+    if(!qs.length)return alert('This quiz has no questions! Add questions first.');
+    ctrlQs=qs.sort((a,b)=>a.order_index-b.order_index);
+    SOCK.emit('admin_start_quiz',{quiz_id:qid});
+    document.getElementById('ctrl-main').innerHTML='<div class="card" style="text-align:center;padding:2rem"><div style="font-size:2rem;margin-bottom:0.5rem">🚀</div><strong>Starting quiz...</strong><p style="color:var(--muted);font-size:0.85rem;margin-top:0.35rem">Notifying all teams</p></div>';
+  }catch(e){alert(e.message);}
+}
+
+function renderCtrl(){
+  document.getElementById('ctrl-main').innerHTML=`
+    <div class="cpanel">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:1.25rem">
+        <div><div style="display:flex;align-items:center;gap:0.6rem;margin-bottom:0.25rem"><span class="dot dg"></span><strong>${activeQuizTitle}</strong></div>
+          <div style="font-size:0.78rem;color:var(--muted)">Session #${activeSess} · ${ctrlQs.length} questions total</div></div>
+        <div class="btn-group">
+          <button class="btn btn-yellow btn-sm" onclick="pauseQuiz()">⏸ Pause</button>
+          <button class="btn btn-red btn-sm" onclick="endQuiz()">⏹ End Quiz</button>
+        </div>
+      </div>
+      <div style="font-size:0.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:0.75rem">Click a question to push to all teams</div>
+      <div id="qctrl-list">
+        ${ctrlQs.map((q,i)=>`
+          <div class="qctrl" id="qc-${q.id}" onclick="pushQ(${q.id},${q.time_limit})">
+            <div class="qn" style="flex-shrink:0">${i+1}</div>
+            <div style="flex:1;min-width:0">
+              <div style="font-size:0.85rem;margin-bottom:0.3rem;line-height:1.4">${q.question_text}</div>
+              <div style="display:flex;gap:0.4rem;flex-wrap:wrap">
+                <span class="badge bp">${{mcq:'MCQ',truefalse:'T/F',text:'Text'}[q.question_type]}</span>
+                <span class="badge bc">${q.points}pts</span><span class="badge by">⏱${q.time_limit}s</span>
+              </div>
+            </div>
+            <div class="tbadge" id="qt-${q.id}">—</div>
+            <button class="btn btn-red btn-sm" onclick="event.stopPropagation();endCurQ(${q.id})">End</button>
+          </div>`).join('')}
+      </div>
+    </div>
+    <div class="card"><div class="card-title">Live Leaderboard</div><div id="ctrl-lb"><div class="empty">Scores appear as teams answer</div></div></div>`;
+}
+
+function pushQ(qid,tl){
+  if(curQId&&curQId!==qid)endCurQ(curQId);
+  curQId=qid;
+  SOCK.emit('admin_next_question',{session_id:activeSess,question_id:qid});
+  document.querySelectorAll('.qctrl').forEach(e=>e.classList.remove('aq'));
+  document.getElementById('qc-'+qid)?.classList.add('aq');
+  startCtrlTimer(qid,tl);
+}
+function startCtrlTimer(qid,secs){
+  clearInterval(timerInt);let rem=secs;
+  const upd=()=>{const b=document.getElementById('qt-'+qid);if(!b)return;b.textContent=rem+'s';b.className='tbadge'+(rem<=5?' td':rem<=10?' tw':'');};
+  upd();
+  timerInt=setInterval(()=>{rem--;upd();if(rem<=0){clearInterval(timerInt);markDone(qid);}},1000);
+}
+function endCurQ(qid){
+  clearInterval(timerInt);
+  SOCK.emit('admin_end_question',{session_id:activeSess,question_id:qid});
+  markDone(qid);curQId=null;
+}
+function markDone(qid){
+  const e=document.getElementById('qc-'+qid);
+  if(e){e.classList.remove('aq');e.classList.add('dq');}
+  const t=document.getElementById('qt-'+qid);
+  if(t){t.textContent='✓';t.className='tbadge';t.style.color='var(--green)';}
+}
+function pauseQuiz(){SOCK.emit('admin_pause',{session_id:activeSess});alert('Quiz paused.');}
+async function endQuiz(){
+  if(!confirm('End quiz and finalize all scores?'))return;
+  SOCK.emit('admin_end_quiz',{session_id:activeSess,quiz_id:activeQuizId});
+  clearInterval(timerInt);
+  const sid=activeSess;activeSess=null;activeQuizId=null;curQId=null;
+  document.getElementById('ctrl-main').innerHTML=`<div class="card" style="text-align:center;padding:2.5rem">
+    <div style="font-size:3rem;margin-bottom:1rem">🏆</div>
+    <strong style="font-size:1.1rem">Quiz Ended!</strong>
+    <p style="color:var(--muted);font-size:0.88rem;margin:0.5rem 0 1.5rem">Scores have been saved.</p>
+    <div class="btn-group" style="justify-content:center">
+      <button class="btn btn-primary" onclick="showPage('results')">View Results →</button>
+      <button class="btn btn-ghost" onclick="loadCtrl()">Start Another</button>
+    </div></div>`;
+}
+
+// RESULTS
+async function loadSessions(){
+  try{
+    const sessions=await GET('/admin/sessions');
+    const sel=document.getElementById('sess-sel');
+    sel.innerHTML='<option value="">— Pick a session —</option>';
+    sessions.forEach(s=>{sel.innerHTML+=`<option value="${s.id}">${s.quiz_title} — Session #${s.id} (${s.status})</option>`;});
+    if(sessions.length===1){sel.value=sessions[0].id;loadResults();}
+  }catch(e){console.error(e);}
+}
+async function loadResults(){
+  const sid=document.getElementById('sess-sel').value;
+  const el=document.getElementById('results-area');
+  if(!sid){el.innerHTML='';return;}
+  el.innerHTML='<div class="card empty">Loading...</div>';
+  try{
+    const[scores,breakdown]=await Promise.all([GET(`/admin/results/${sid}`),GET(`/admin/results/${sid}/breakdown`)]);
+    const mx=Math.max(...scores.map(t=>t.total_score),1);
+    el.innerHTML=`
+      <div class="card"><div class="card-title">Final Standings</div>
+        <table><thead><tr><th>Rank</th><th>Team</th><th>Score</th><th>Correct</th><th>Answered</th><th></th></tr></thead>
+        <tbody>${scores.map((t,i)=>`<tr>
+          <td><strong style="font-family:'Space Mono',monospace;${i===0?'color:#fbbf24':i===1?'color:#9ca3af':i===2?'color:#b45309':''}">${i===0?'🥇':i===1?'🥈':i===2?'🥉':'#'+(i+1)}</strong></td>
+          <td><strong>${t.team_name}</strong><br><span style="font-size:0.75rem;color:var(--muted)">${t.team_id}</span></td>
+          <td><strong style="font-family:'Space Mono',monospace;color:#a78bfa;font-size:1rem">${t.total_score}</strong></td>
+          <td>${t.correct}</td><td>${t.answered}</td>
+          <td style="min-width:100px"><div class="score-bar"><div class="score-fill" style="width:${Math.round(t.total_score/mx*100)}%"></div></div></td>
+        </tr>`).join('')}
+        ${!scores.length?'<tr><td colspan="6" class="empty">No scores recorded yet</td></tr>':''}
+        </tbody></table>
+      </div>
+      ${breakdown.length?`<div class="card"><div class="card-title">Question Breakdown</div>
+        ${breakdown.map((q,i)=>{
+          const pct=q.total_answers>0?Math.round(q.correct_count/q.total_answers*100):0;
+          const c=pct>=60?'var(--green)':pct>=30?'var(--yellow)':'var(--red)';
+          return`<div class="bdr">
+            <div class="qn" style="flex-shrink:0">${i+1}</div>
+            <div>
+              <div style="font-size:0.85rem;margin-bottom:0.4rem">${q.question_text}</div>
+              <div style="display:flex;align-items:center;gap:0.75rem">
+                <div style="flex:1;max-width:180px"><div class="pbar"><div class="pfill" style="width:${pct}%;background:${c}"></div></div></div>
+                <span style="font-size:0.78rem;color:var(--muted)">${pct}% correct (${q.correct_count}/${q.total_answers})</span>
+                ${q.avg_time?`<span style="font-size:0.78rem;color:var(--muted)">avg ${q.avg_time}s</span>`:''}
+              </div>
+            </div>
+            <span class="badge bp">${q.points}pts</span>
+          </div>`;}).join('')}
+      </div>`:''}`; 
+  }catch(e){el.innerHTML=`<div class="al al-e">${e.message}</div>`;}
+}
+
+document.getElementById('l-pass').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin();});
+tryAutoLogin();
+</script>
+</body>
+</html>
