@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Leaderboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.socket.io/4.6.2/socket.io.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--bg:#0a0a0f;--surface:#13131a;--accent:#7c3aed;--accent2:#06b6d4;--green:#10b981;--text:#f0f0f5;--muted:#6b7280;--border:#1f1f2e}
+body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;padding:2rem;overflow:hidden}
+.header{display:flex;align-items:center;justify-content:space-between;margin-bottom:2rem;padding-bottom:1.5rem;border-bottom:1px solid var(--border)}
+.header h1{font-size:2.5rem;font-weight:800;background:linear-gradient(135deg,#f0f0f5 30%,#7c3aed 70%,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text}
+.live-badge{display:flex;align-items:center;gap:0.6rem;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);padding:0.5rem 1.2rem;border-radius:100px;font-size:0.85rem;color:#34d399;font-weight:700}
+.live-dot{width:8px;height:8px;border-radius:50%;background:#10b981;animation:blink 1.2s ease-in-out infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+.event-name{font-size:0.9rem;color:var(--muted);font-family:'Space Mono',monospace}
+.leaderboard{display:flex;flex-direction:column;gap:0.75rem}
+.lb-row{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:1.25rem 1.5rem;display:flex;align-items:center;gap:1.5rem;transition:all 0.5s;animation:slideIn 0.4s ease-out}
+@keyframes slideIn{from{opacity:0;transform:translateX(-20px)}to{opacity:1;transform:translateX(0)}}
+.lb-row.rank-1{border-color:rgba(251,191,36,0.4);background:rgba(251,191,36,0.05)}
+.lb-row.rank-2{border-color:rgba(156,163,175,0.4);background:rgba(156,163,175,0.03)}
+.lb-row.rank-3{border-color:rgba(180,83,9,0.3);background:rgba(180,83,9,0.03)}
+.rank-num{font-family:'Space Mono',monospace;font-size:1.5rem;font-weight:700;width:60px;text-align:center}
+.rank-1 .rank-num{color:#fbbf24}
+.rank-2 .rank-num{color:#9ca3af}
+.rank-3 .rank-num{color:#b45309}
+.team-info{flex:1}
+.team-name{font-size:1.4rem;font-weight:800}
+.team-stats{color:var(--muted);font-size:0.85rem;margin-top:0.2rem;font-family:'Space Mono',monospace}
+.score-bar-wrap{flex:2;max-width:400px}
+.score-bar{height:8px;background:var(--border);border-radius:100px;overflow:hidden}
+.score-bar-fill{height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:100px;transition:width 0.8s cubic-bezier(0.34,1.56,0.64,1)}
+.score-val{font-family:'Space Mono',monospace;font-size:2rem;font-weight:700;color:#a78bfa;min-width:90px;text-align:right}
+.rank-1 .score-val{color:#fbbf24}
+.waiting{text-align:center;padding:6rem;color:var(--muted)}
+.waiting-icon{font-size:5rem;margin-bottom:1.5rem}
+.waiting h2{font-size:1.5rem;color:var(--muted);font-weight:400}
+/* Ticker at bottom */
+.ticker{position:fixed;bottom:0;left:0;right:0;background:rgba(10,10,15,0.95);border-top:1px solid var(--border);padding:0.75rem 2rem;display:flex;align-items:center;gap:1rem;font-family:'Space Mono',monospace;font-size:0.8rem;color:var(--muted)}
+.ticker-label{color:var(--accent);flex-shrink:0}
+</style>
+</head>
+<body>
+<div class="header">
+  <div>
+    <h1>LEADERBOARD</h1>
+    <div class="event-name" id="event-name">Waiting for quiz to start...</div>
+  </div>
+  <div style="display:flex;align-items:center;gap:1rem">
+    <div class="live-badge"><div class="live-dot"></div>LIVE</div>
+  </div>
+</div>
+
+<div id="leaderboard-area">
+  <div class="waiting">
+    <div class="waiting-icon">🏆</div>
+    <h2>Waiting for the quiz to begin...</h2>
+    <p style="margin-top:0.5rem;font-size:0.85rem">Scores will appear here as teams answer</p>
+  </div>
+</div>
+
+<div class="ticker">
+  <span class="ticker-label">STATUS</span>
+  <span id="ticker-msg">Waiting for admin to start the event</span>
+</div>
+
+<script>
+// Leaderboard connects as a viewer — no auth needed for public view
+// We'll poll + listen via socket using admin token or anonymously
+let sessionId = null;
+let maxScore = 1;
+
+// Try to get token from URL or storage
+const urlToken = new URLSearchParams(location.search).get('token');
+const storedToken = urlToken || localStorage.getItem('admin_token') || localStorage.getItem('team_token');
+
+const socket = storedToken
+  ? io({auth:{token:storedToken}})
+  : io();
+
+socket.on('connect_error', () => {
+  // Try without auth
+});
+
+socket.on('quiz_started', ({session_id, quiz}) => {
+  sessionId = session_id;
+  socket.emit('join_session', session_id);
+  document.getElementById('event-name').textContent = quiz.title;
+  document.getElementById('ticker-msg').textContent = `Quiz "${quiz.title}" is live!`;
+});
+
+socket.on('question_started', ({question, session_id}) => {
+  sessionId = session_id;
+  document.getElementById('ticker-msg').textContent = `Q: ${question.question_text.substring(0,80)}...  [${question.time_limit}s, ${question.points}pts]`;
+});
+
+socket.on('question_ended', () => {
+  document.getElementById('ticker-msg').textContent = 'Waiting for next question...';
+});
+
+socket.on('leaderboard_update', (data) => {
+  renderLeaderboard(data);
+});
+
+socket.on('quiz_ended', () => {
+  document.getElementById('ticker-msg').textContent = '🏆 Quiz has ended! Final scores shown above.';
+  document.getElementById('event-name').textContent = (document.getElementById('event-name').textContent || '') + ' — FINAL';
+});
+
+function renderLeaderboard(data) {
+  if (!data.length) return;
+  maxScore = Math.max(...data.map(t => t.total_score), 1);
+
+  const area = document.getElementById('leaderboard-area');
+  area.innerHTML = `<div class="leaderboard">
+    ${data.slice(0, 10).map((t, i) => `
+      <div class="lb-row rank-${i+1}" style="animation-delay:${i*0.06}s">
+        <div class="rank-num">${i===0?'🥇':i===1?'🥈':i===2?'🥉':`#${i+1}`}</div>
+        <div class="team-info">
+          <div class="team-name">${t.team_name}</div>
+          <div class="team-stats">${t.correct} correct · ${t.answered} answered</div>
+        </div>
+        <div class="score-bar-wrap">
+          <div class="score-bar">
+            <div class="score-bar-fill" style="width:${Math.round(t.total_score/maxScore*100)}%"></div>
+          </div>
+        </div>
+        <div class="score-val">${t.total_score}</div>
+      </div>`).join('')}
+  </div>`;
+}
+
+// Poll for active session
+async function pollSession() {
+  try {
+    const headers = storedToken ? {'Authorization':'Bearer '+storedToken} : {};
+    const r = await fetch('/api/quiz/active-session', {headers});
+    const d = await r.json();
+    if (d.session) {
+      sessionId = d.session.id;
+      socket.emit('join_session', sessionId);
+      document.getElementById('event-name').textContent = d.session.title;
+      // Get initial leaderboard
+      const lr = await fetch(`/api/quiz/session/${sessionId}/leaderboard`, {headers});
+      const lb = await lr.json();
+      if (lb.length) renderLeaderboard(lb);
+    }
+  } catch(e) {}
+}
+
+pollSession();
+setInterval(pollSession, 10000);
+</script>
+</body>
+</html>
